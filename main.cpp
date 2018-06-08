@@ -77,14 +77,29 @@ static void masterProcess(int matrixDimension, int worldSize) {
                     int result;
                     MPI_Status resultMessageStatus;
                     MPI_Recv(&result, 1, MPI_INT, MPI_ANY_SOURCE, RESULT, MPI_COMM_WORLD, &resultMessageStatus);
+                    cout << "Result in Master is " << result << " from source: " << resultMessageStatus.MPI_SOURCE << endl << flush;
 
                     pair<int, int> position = slavesInformation[resultMessageStatus.MPI_SOURCE];
+                    cout << "Writing element in matrix at position (" << position.first << ", " << position.second << ")" << endl << flush;
                     matrixMultiplicationResult[position.first][position.second] = result;
                 }
 
                 slaveCount = 1;
+                j--;
             }
         }
+    }
+
+    //Take information from the last slaves
+    for (int slave = 1; slave < slaveCount; ++slave) {
+        int result;
+        MPI_Status resultMessageStatus;
+        MPI_Recv(&result, 1, MPI_INT, MPI_ANY_SOURCE, RESULT, MPI_COMM_WORLD, &resultMessageStatus);
+        cout << "Result in Master is " << result << " from source: " << resultMessageStatus.MPI_SOURCE << endl << flush;
+
+        pair<int, int> position = slavesInformation[resultMessageStatus.MPI_SOURCE];
+        cout << "Writing element in matrix at position (" << position.first << ", " << position.second << ")" << endl << flush;
+        matrixMultiplicationResult[position.first][position.second] = result;
     }
 
     char dummyChar = ' ';
@@ -122,8 +137,6 @@ static void slaveProcess(int matrixDimension, int worldRank) {
         MPI_Recv(row, matrixDimension, MPI_INT, MASTER, MPI_ANY_TAG, MPI_COMM_WORLD, &rowStatus);
         MPI_Recv(column, matrixDimension, MPI_INT, MASTER, MPI_ANY_TAG, MPI_COMM_WORLD, &columnStatus);
 
-        cout << "I am slave number: " << worldRank << endl << flush;
-
         if (rowStatus.MPI_TAG != END && columnStatus.MPI_TAG != END) {
             int resultForMaster = multiplyVectors(row, column, matrixDimension);
             MPI_Send(&resultForMaster, 1, MPI_INT, MASTER, RESULT, MPI_COMM_WORLD);
@@ -131,8 +144,6 @@ static void slaveProcess(int matrixDimension, int worldRank) {
             workToDo = false;
         }
     }
-
-    cout << "I am slave number: " << worldRank << " and I finished processing"<<endl << flush;
 
     delete[] row;
     delete[] column;
