@@ -48,26 +48,14 @@ int main(int argc, char* argv[]) {
 }
 
 static void masterProcess(int matrixDimension, int worldSize) {
-    cout << "I am the master! And the matrixDimension is " << matrixDimension << endl << flush;
+    cout << "Parallel Matrix multiplication with square matrix of dimension: " << matrixDimension << endl << flush;
 
     int **firstMatrix = allocateMatrix(matrixDimension);
     int **secondMatrix = allocateMatrix(matrixDimension);
     int **matrixMultiplicationResult = allocateMatrix(matrixDimension);
 
-//    populateMatrixWithOnes(firstMatrix, matrixDimension);
-//    populateMatrixWithOnes(secondMatrix, matrixDimension);
-
-    for (int l = 0; l < matrixDimension; ++l) {
-        for (int i = 0; i < matrixDimension; ++i) {
-            firstMatrix[l][i] = l + i;
-            secondMatrix[l][i] = l * i;
-        }
-    }
-
-    printMatrix(cout, firstMatrix, matrixDimension);
-    printMatrix(cout, secondMatrix, matrixDimension);
-
-    cout << "I, the master, am sending the data to the slaves" << endl << flush;
+    populateMatrixWithOnes(firstMatrix, matrixDimension);
+    populateMatrixWithOnes(secondMatrix, matrixDimension);
 
     int slaveCount = 1;
     unordered_map<int, pair<int,int> > slavesInformation;
