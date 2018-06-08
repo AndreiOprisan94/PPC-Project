@@ -1,8 +1,9 @@
 #include <iostream>
-#include <cstdio>
-#include <cstdlib>
 #include <map>
 #include <utility>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "mpi.h"
 #include "utils.h"
@@ -10,6 +11,7 @@
 #define MASTER 0
 #define ROW 1
 #define COLUMN 2
+#define END 3
 
 using namespace std;
 
@@ -68,6 +70,19 @@ static void masterProcess(int matrixDimension, int worldSize) {
             }
         }
     }
+
+    char dummyChar = ' ';
+
+    //Send finish message to slaves, two messages because it expects a row and a column
+    for (int k = 1; k < slave; ++k) {
+        MPI_Send(&dummyChar, 1, MPI_BYTE, k, END, MPI_COMM_WORLD);
+        MPI_Send(&dummyChar, 1, MPI_BYTE, k, END, MPI_COMM_WORLD);
+    }
+
+    for (int k = slave; k < worldSize; ++k) {
+        MPI_Send(&dummyChar, 1, MPI_BYTE, k, END, MPI_COMM_WORLD);
+        MPI_Send(&dummyChar, 1, MPI_BYTE, k, END, MPI_COMM_WORLD);
+    }
     
     freeMatrix(firstMatrix, matrixDimension);
     freeMatrix(secondMatrix, matrixDimension);
@@ -78,20 +93,34 @@ static void masterProcess(int matrixDimension, int worldSize) {
 static void slaveProcess(int matrixDimension, int worldRank) {
     int *row = new int[matrixDimension];
     int *column = new int[matrixDimension];
+    
+    bool workToDo = true;
 
-    while (true) {
-        MPI_Status status;
-        MPI_Recv(row, matrixDimension, MPI_INT, MASTER, ROW, MPI_COMM_WORLD, &status);
-        MPI_Recv(column, matrixDimension, MPI_INT, MASTER, COLUMN, MPI_COMM_WORLD, &status);
+    while (workToDo) {
+        MPI_Status rowStatus;
+        MPI_Status columnStatus;
+
+        MPI_Recv(row, matrixDimension, MPI_INT, MASTER, MPI_ANY_TAG, MPI_COMM_WORLD, &rowStatus);
+        MPI_Recv(column, matrixDimension, MPI_INT, MASTER, MPI_ANY_TAG, MPI_COMM_WORLD, &columnStatus);
 
         cout << "I am slave number: " << worldRank << endl << flush;
 
-        cout << "Row content is: ";
-        printLine(cout, row, matrixDimension);
+        if (rowStatus.MPI_TAG != END && columnStatus.MPI_TAG != END) {
+            if (rowStatus.MPI_TAG == ROW) {
+                cout << "Row content is: ";
+                printLine(cout, row, matrixDimension);
+            }
 
-        cout << "Column content is: ";
-        printLine(cout, row, matrixDimension);
+            if (columnStatus.MPI_TAG == COLUMN) {
+                cout << "Column content is: ";
+                printLine(cout, column, matrixDimension);
+            }
+        } else {
+            workToDo = false;
+        }
     }
+
+    cout << "I am slave number: " << worldRank << " and I finished processing"<<endl << flush;
 
     delete[] row;
     delete[] column;
