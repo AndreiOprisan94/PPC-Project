@@ -45,3 +45,12 @@ void printLine(std::ostream& destination, int* line, int lineSize) {
 
     destination << endl << flush;
 }
+
+int multiplyVectors(int* lhs, int* rhs, int size) {
+    int sum = 0;
+    for (int i = 0; i < size; ++i) {
+        sum += lhs[i] * rhs[i];
+    }
+
+    return sum;
+}
