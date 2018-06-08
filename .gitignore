@@ -4,3 +4,6 @@
 
 # Cmake builds
 cmake-build*
+
+# Typical results file
+results
