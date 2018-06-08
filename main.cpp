@@ -10,18 +10,12 @@
 #include "utils.h"
 
 #define MASTER 0
-#define ROW 1
-#define COLUMN 2
-#define RESULT 3
-#define END 4
+#define RESULT 1
 
 using namespace std;
 
 static void masterProcess(int matrixDimension, int worldSize);
-static void populateResultMatrix(const unordered_map<int, pair<int, int> >& slavesInformation, int** resultMatrix);
 static void slaveProcess(int matrixDimension);
-
-static const char* const RESULT_PATH_ENV_NAME = "PPC_PARALLEL_RESULT_PATH";
 
 int main(int argc, char* argv[]) {
 
@@ -45,7 +39,8 @@ int main(int argc, char* argv[]) {
         const clock_t end = clock();
         const double timeSpent = ((double) end - begin) / CLOCKS_PER_SEC;
 
-        cout << "[PARALLEL] Time=" << timeSpent << "&MatrixSize=" << matrixDimension << endl << flush;
+        printf("[PARALLEL] Time=%f&MatrixSize=%d", timeSpent, matrixDimension);
+        fflush(stdout);
     } else {
         slaveProcess(matrixDimension);
     }
@@ -65,88 +60,80 @@ static void masterProcess(int matrixDimension, int worldSize) {
     populateMatrixWithOnes(firstMatrix, matrixDimension);
     populateMatrixWithOnes(secondMatrix, matrixDimension);
 
-    int slaveCount = 1;
-    unordered_map<int, pair<int,int> > slavesInformation;
+    for (int i = 0; i < matrixDimension; ++i) {
+        MPI_Bcast(firstMatrix[i], matrixDimension, MPI_INT, MASTER, MPI_COMM_WORLD);
+        MPI_Bcast(secondMatrix[i], matrixDimension, MPI_INT, MASTER, MPI_COMM_WORLD);
+    }
 
-    for (int i = 0; i < matrixDimension; i++) {
+    int numberOfLines = matrixDimension / worldSize;
+    cout << "Number of lines: " << numberOfLines << endl << flush;
+    for (int i = 0; i < numberOfLines; ++i) {
         for (int j = 0; j < matrixDimension; ++j) {
-            if (slaveCount < worldSize) {
-                pair<int, int> position;
-                position.first = i;
-                position.second = j;
-                slavesInformation[slaveCount] = position;
-
-                MPI_Send(firstMatrix[i], matrixDimension, MPI_INT, slaveCount, ROW, MPI_COMM_WORLD);
-                MPI_Send(&secondMatrix[j][0], matrixDimension, MPI_INT, slaveCount, COLUMN, MPI_COMM_WORLD);
-                slaveCount++;
-            } else {
-                for (int slave = 1; slave < worldSize; ++slave) {
-                    populateResultMatrix(slavesInformation, matrixMultiplicationResult);
-                }
-
-                slaveCount = 1;
-                j--;
+            int result = 0;
+            for (int counter = 0; counter < matrixDimension; ++counter) {
+                result += firstMatrix[i][counter] * secondMatrix[counter][j];
             }
+            matrixMultiplicationResult[i][j] = result;
         }
     }
 
-    //Take information from the last slaves
-    for (int slave = 1; slave < slaveCount; ++slave) {
-        populateResultMatrix(slavesInformation, matrixMultiplicationResult);
-    }
-
-    char dummyChar = ' ';
-
-    //Send finish message to slaves, two messages because it expects a row and a column
+    int i = numberOfLines;
     for (int slave = 1; slave < worldSize; ++slave) {
-        MPI_Send(&dummyChar, 1, MPI_BYTE, slave, END, MPI_COMM_WORLD);
-        MPI_Send(&dummyChar, 1, MPI_BYTE, slave, END, MPI_COMM_WORLD);
+        for (int l = 0; l < numberOfLines; ++l) {
+            MPI_Status status;
+            MPI_Recv(matrixMultiplicationResult[i], matrixDimension, MPI_INT, slave, RESULT, MPI_COMM_WORLD, &status);
+            i++;
+        }
     }
 
-    const auto resultPath = getenv(RESULT_PATH_ENV_NAME);
-    cout << "Saving parallel computation results to: " << resultPath << endl << flush;
-    ofstream destination(resultPath);
-
-    destination << "Matrix multiplication result is: " << endl;
-    printMatrix(destination, matrixMultiplicationResult, matrixDimension);
-    destination.close();
-    
     freeMatrix(firstMatrix, matrixDimension);
     freeMatrix(secondMatrix, matrixDimension);
     freeMatrix(matrixMultiplicationResult, matrixDimension);
 
 }
 
-static void populateResultMatrix(const unordered_map<int, pair<int, int> >& slavesInformation, int** resultMatrix) {
-    int result;
-    MPI_Status resultMessageStatus;
-    MPI_Recv(&result, 1, MPI_INT, MPI_ANY_SOURCE, RESULT, MPI_COMM_WORLD, &resultMessageStatus);
-
-    auto position = slavesInformation.at(resultMessageStatus.MPI_SOURCE);
-    resultMatrix[position.first][position.second] = result;
-}
-
 static void slaveProcess(int matrixDimension) {
-    auto *row = new int[matrixDimension];
-    auto *column = new int[matrixDimension];
-    
-    bool workToDo = true;
+    int **firstMatrix = allocateMatrix(matrixDimension);
+    int **secondMatrix = allocateMatrix(matrixDimension);
 
-    while (workToDo) {
-        MPI_Status rowStatus;
-        MPI_Status columnStatus;
+    for (int i = 0; i < matrixDimension; ++i) {
+        MPI_Bcast(firstMatrix[i], matrixDimension, MPI_INT, MASTER, MPI_COMM_WORLD);
+        MPI_Bcast(secondMatrix[i], matrixDimension, MPI_INT, MASTER, MPI_COMM_WORLD);
+    }
 
-        MPI_Recv(row, matrixDimension, MPI_INT, MASTER, MPI_ANY_TAG, MPI_COMM_WORLD, &rowStatus);
-        MPI_Recv(column, matrixDimension, MPI_INT, MASTER, MPI_ANY_TAG, MPI_COMM_WORLD, &columnStatus);
+    int worldSize;
+    int rank;
+    MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-        if (rowStatus.MPI_TAG != END && columnStatus.MPI_TAG != END) {
-            int resultForMaster = multiplyVectors(row, column, matrixDimension);
-            MPI_Send(&resultForMaster, 1, MPI_INT, MASTER, RESULT, MPI_COMM_WORLD);
-        } else {
-            workToDo = false;
+    int numberOfLines = matrixDimension / worldSize;
+    int **resultStorage = new int*[numberOfLines];
+
+    for (int i = 0; i < numberOfLines; ++i) {
+        resultStorage[i] = new int[matrixDimension];
+    }
+
+    int offset = numberOfLines * rank;
+    for (int line = offset; line < offset + numberOfLines; line++) {
+        for (int column = 0; column < matrixDimension; ++column) {
+            int result = 0;
+            for (int counter = 0; counter < matrixDimension; ++counter) {
+                result += firstMatrix[line][counter] * secondMatrix[counter][column];
+            }
+            resultStorage[line-offset][column] = result;
         }
     }
 
-    delete[] row;
-    delete[] column;
+    for (int i = 0; i < numberOfLines; ++i) {
+        MPI_Send(resultStorage[i], matrixDimension, MPI_INT, MASTER, RESULT, MPI_COMM_WORLD);
+    }
+
+    freeMatrix(firstMatrix, matrixDimension);
+    freeMatrix(secondMatrix, matrixDimension);
+
+    for (int i = 0; i < numberOfLines; ++i) {
+        delete[] resultStorage[i];
+    }
+
+    delete[] resultStorage;
 }
