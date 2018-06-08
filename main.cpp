@@ -17,6 +17,7 @@
 using namespace std;
 
 static void masterProcess(int matrixDimension, int worldSize);
+static void populateResultMatrix(const unordered_map<int, pair<int, int> >& slavesInformation, int** resultMatrix);
 static void slaveProcess(int matrixDimension, int worldRank);
 
 int main(int argc, char* argv[]) {
@@ -53,8 +54,18 @@ static void masterProcess(int matrixDimension, int worldSize) {
     int **secondMatrix = allocateMatrix(matrixDimension);
     int **matrixMultiplicationResult = allocateMatrix(matrixDimension);
 
-    populateMatrixWithOnes(firstMatrix, matrixDimension);
-    populateMatrixWithOnes(secondMatrix, matrixDimension);
+//    populateMatrixWithOnes(firstMatrix, matrixDimension);
+//    populateMatrixWithOnes(secondMatrix, matrixDimension);
+
+    for (int l = 0; l < matrixDimension; ++l) {
+        for (int i = 0; i < matrixDimension; ++i) {
+            firstMatrix[l][i] = l + i;
+            secondMatrix[l][i] = l * i;
+        }
+    }
+
+    printMatrix(cout, firstMatrix, matrixDimension);
+    printMatrix(cout, secondMatrix, matrixDimension);
 
     cout << "I, the master, am sending the data to the slaves" << endl << flush;
 
@@ -74,14 +85,7 @@ static void masterProcess(int matrixDimension, int worldSize) {
                 slaveCount++;
             } else {
                 for (int slave = 1; slave < worldSize; ++slave) {
-                    int result;
-                    MPI_Status resultMessageStatus;
-                    MPI_Recv(&result, 1, MPI_INT, MPI_ANY_SOURCE, RESULT, MPI_COMM_WORLD, &resultMessageStatus);
-                    cout << "Result in Master is " << result << " from source: " << resultMessageStatus.MPI_SOURCE << endl << flush;
-
-                    pair<int, int> position = slavesInformation[resultMessageStatus.MPI_SOURCE];
-                    cout << "Writing element in matrix at position (" << position.first << ", " << position.second << ")" << endl << flush;
-                    matrixMultiplicationResult[position.first][position.second] = result;
+                    populateResultMatrix(slavesInformation, matrixMultiplicationResult);
                 }
 
                 slaveCount = 1;
@@ -92,27 +96,15 @@ static void masterProcess(int matrixDimension, int worldSize) {
 
     //Take information from the last slaves
     for (int slave = 1; slave < slaveCount; ++slave) {
-        int result;
-        MPI_Status resultMessageStatus;
-        MPI_Recv(&result, 1, MPI_INT, MPI_ANY_SOURCE, RESULT, MPI_COMM_WORLD, &resultMessageStatus);
-        cout << "Result in Master is " << result << " from source: " << resultMessageStatus.MPI_SOURCE << endl << flush;
-
-        pair<int, int> position = slavesInformation[resultMessageStatus.MPI_SOURCE];
-        cout << "Writing element in matrix at position (" << position.first << ", " << position.second << ")" << endl << flush;
-        matrixMultiplicationResult[position.first][position.second] = result;
+        populateResultMatrix(slavesInformation, matrixMultiplicationResult);
     }
 
     char dummyChar = ' ';
 
     //Send finish message to slaves, two messages because it expects a row and a column
-    for (int k = 1; k < slaveCount; ++k) {
-        MPI_Send(&dummyChar, 1, MPI_BYTE, k, END, MPI_COMM_WORLD);
-        MPI_Send(&dummyChar, 1, MPI_BYTE, k, END, MPI_COMM_WORLD);
-    }
-
-    for (int k = slaveCount; k < worldSize; ++k) {
-        MPI_Send(&dummyChar, 1, MPI_BYTE, k, END, MPI_COMM_WORLD);
-        MPI_Send(&dummyChar, 1, MPI_BYTE, k, END, MPI_COMM_WORLD);
+    for (int slave = 1; slave < worldSize; ++slave) {
+        MPI_Send(&dummyChar, 1, MPI_BYTE, slave, END, MPI_COMM_WORLD);
+        MPI_Send(&dummyChar, 1, MPI_BYTE, slave, END, MPI_COMM_WORLD);
     }
 
     cout << "Matrix multiplication result is: " << endl;
@@ -122,6 +114,15 @@ static void masterProcess(int matrixDimension, int worldSize) {
     freeMatrix(secondMatrix, matrixDimension);
     freeMatrix(matrixMultiplicationResult, matrixDimension);
 
+}
+
+static void populateResultMatrix(const unordered_map<int, pair<int, int> >& slavesInformation, int** resultMatrix) {
+    int result;
+    MPI_Status resultMessageStatus;
+    MPI_Recv(&result, 1, MPI_INT, MPI_ANY_SOURCE, RESULT, MPI_COMM_WORLD, &resultMessageStatus);
+
+    pair<int, int> position = slavesInformation.at(resultMessageStatus.MPI_SOURCE);
+    resultMatrix[position.first][position.second] = result;
 }
 
 static void slaveProcess(int matrixDimension, int worldRank) {
