@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 
 #include "mpi.h"
 #include "utils.h"
@@ -39,7 +40,12 @@ int main(int argc, char* argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
 
     if (worldRank == MASTER) {
+        const clock_t begin = clock();
         masterProcess(matrixDimension, worldSize);
+        const clock_t end = clock();
+        const double timeSpent = ((double) end - begin) / CLOCKS_PER_SEC;
+
+        cout << "[PARALLEL] Time=" << timeSpent << "&MatrixSize=" << matrixDimension << endl << flush;
     } else {
         slaveProcess(matrixDimension);
     }
