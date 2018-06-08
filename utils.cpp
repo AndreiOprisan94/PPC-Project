@@ -29,11 +29,19 @@ void populateMatrixWithOnes(int** matrix, int matrixDimension) {
     }
 }
 
-void printMatrix(ofstream& destination, int** matrix, int matrixDimension) {
+void printMatrix(ostream& destination, int** matrix, int matrixDimension) {
     for (int i = 0; i < matrixDimension; ++i) {
         for (int j = 0; j < matrixDimension; ++j) {
             destination << matrix[i][j] << " ";
         }
         destination << endl;
     }
+}
+
+void printLine(std::ostream& destination, int* line, int lineSize) {
+    for (int i = 0; i < lineSize; ++i) {
+        destination << line[i] << " ";
+    }
+
+    destination << endl << flush;
 }

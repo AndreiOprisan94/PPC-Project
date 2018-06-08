@@ -8,6 +8,8 @@
 #include "utils.h"
 
 #define MASTER 0
+#define ROW 1
+#define COLUMN 2
 
 using namespace std;
 
@@ -42,7 +44,7 @@ int main(int argc, char* argv[]) {
 }
 
 static void masterProcess(int matrixDimension, int worldSize) {
-    cout << "I am the master!" << endl << flush;
+    cout << "I am the master! And the matrixDimension is " << matrixDimension << endl << flush;
 
     int **firstMatrix = allocateMatrix(matrixDimension);
     int **secondMatrix = allocateMatrix(matrixDimension);
@@ -51,27 +53,22 @@ static void masterProcess(int matrixDimension, int worldSize) {
     populateMatrixWithOnes(firstMatrix, matrixDimension);
     populateMatrixWithOnes(secondMatrix, matrixDimension);
 
-    int *rows = new int[matrixDimension];
-    int *columns = new int[matrixDimension];
-    int counter = 0;
+    cout << "I, the master, am sending the data to the slaves" << endl << flush;
 
-    while (counter < matrixDimension) {
-        for (int i = 1; i < worldSize && counter < matrixDimension; i++) {
-            for (int j = 0; j < matrixDimension; j++) {
-                rows[j] = firstMatrix[counter][j];
-                columns[j] = secondMatrix[j][counter];
+    int slave = 1;
+
+    for (int i = 0; i < matrixDimension; i++) {
+        for (int j = 0; j < matrixDimension; ++j) {
+            if (slave < worldSize) {
+                MPI_Send(firstMatrix[i], matrixDimension, MPI_INT, slave, ROW, MPI_COMM_WORLD);
+                MPI_Send(&secondMatrix[j][0], matrixDimension, MPI_INT, slave, COLUMN, MPI_COMM_WORLD);
+                slave++;
+            } else {
+                slave = 1;
             }
-
-            MPI_Send(rows, matrixDimension, MPI_INT, i, 0, MPI_COMM_WORLD);
-            MPI_Send(columns, matrixDimension, MPI_INT, i, 0, MPI_COMM_WORLD);
-            
-
         }
     }
-
-    cout << "I, the master, successfully send the numbers" << endl << flush;
-
-
+    
     freeMatrix(firstMatrix, matrixDimension);
     freeMatrix(secondMatrix, matrixDimension);
     freeMatrix(matrixMultiplicationResult, matrixDimension);
@@ -79,10 +76,23 @@ static void masterProcess(int matrixDimension, int worldSize) {
 }
 
 static void slaveProcess(int matrixDimension, int worldRank) {
-    cout << "I am slave number: " << worldRank << endl << flush;
-    int integerToReceive;
-    MPI_Status status;
-    MPI_Recv(&integerToReceive, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+    int *row = new int[matrixDimension];
+    int *column = new int[matrixDimension];
 
-    cout << "I, " << worldRank << " received the number " << integerToReceive << " from: " << status.MPI_SOURCE << endl << flush;
+    while (true) {
+        MPI_Status status;
+        MPI_Recv(row, matrixDimension, MPI_INT, MASTER, ROW, MPI_COMM_WORLD, &status);
+        MPI_Recv(column, matrixDimension, MPI_INT, MASTER, COLUMN, MPI_COMM_WORLD, &status);
+
+        cout << "I am slave number: " << worldRank << endl << flush;
+
+        cout << "Row content is: ";
+        printLine(cout, row, matrixDimension);
+
+        cout << "Column content is: ";
+        printLine(cout, row, matrixDimension);
+    }
+
+    delete[] row;
+    delete[] column;
 }
