@@ -2,10 +2,20 @@
 #include <cstdio>
 #include <cstdlib>
 #include "mpi.h"
+#include "utils.h"
 
 using namespace std;
 
+static void masterProcess(int matrixDimension);
+static void slaveProcess(int matrixDimension);
+
 int main(int argc, char* argv[]) {
+
+    if (argc < 2) {
+        cerr << "Please provide a dimension for the matrix" << endl << flush;
+        return -1;
+    }
+
     MPI_Init(&argc, &argv);
 
     int worldRank, worldSize;
@@ -34,4 +44,12 @@ int main(int argc, char* argv[]) {
     MPI_Finalize();
 
     return 0;
+}
+
+static void masterProcess(int matrixDimension) {
+
+}
+
+static void slaveProcess(int matrixDimension) {
+
 }
