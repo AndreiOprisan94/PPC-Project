@@ -109,13 +109,13 @@ static void populateResultMatrix(const unordered_map<int, pair<int, int> >& slav
     MPI_Status resultMessageStatus;
     MPI_Recv(&result, 1, MPI_INT, MPI_ANY_SOURCE, RESULT, MPI_COMM_WORLD, &resultMessageStatus);
 
-    pair<int, int> position = slavesInformation.at(resultMessageStatus.MPI_SOURCE);
+    auto position = slavesInformation.at(resultMessageStatus.MPI_SOURCE);
     resultMatrix[position.first][position.second] = result;
 }
 
 static void slaveProcess(int matrixDimension, int worldRank) {
-    int *row = new int[matrixDimension];
-    int *column = new int[matrixDimension];
+    auto *row = new int[matrixDimension];
+    auto *column = new int[matrixDimension];
     
     bool workToDo = true;
 
