@@ -18,7 +18,7 @@ using namespace std;
 
 static void masterProcess(int matrixDimension, int worldSize);
 static void populateResultMatrix(const unordered_map<int, pair<int, int> >& slavesInformation, int** resultMatrix);
-static void slaveProcess(int matrixDimension, int worldRank);
+static void slaveProcess(int matrixDimension);
 
 int main(int argc, char* argv[]) {
 
@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
     if (worldRank == MASTER) {
         masterProcess(matrixDimension, worldSize);
     } else {
-        slaveProcess(matrixDimension, worldRank);
+        slaveProcess(matrixDimension);
     }
 
     MPI_Finalize();
@@ -113,7 +113,7 @@ static void populateResultMatrix(const unordered_map<int, pair<int, int> >& slav
     resultMatrix[position.first][position.second] = result;
 }
 
-static void slaveProcess(int matrixDimension, int worldRank) {
+static void slaveProcess(int matrixDimension) {
     auto *row = new int[matrixDimension];
     auto *column = new int[matrixDimension];
     
