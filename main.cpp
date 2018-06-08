@@ -20,6 +20,8 @@ static void masterProcess(int matrixDimension, int worldSize);
 static void populateResultMatrix(const unordered_map<int, pair<int, int> >& slavesInformation, int** resultMatrix);
 static void slaveProcess(int matrixDimension);
 
+static const char* const RESULT_PATH_ENV_NAME = "PPC_PARALLEL_RESULT_PATH";
+
 int main(int argc, char* argv[]) {
 
     if (argc < 2) {
@@ -48,7 +50,7 @@ int main(int argc, char* argv[]) {
 }
 
 static void masterProcess(int matrixDimension, int worldSize) {
-    cout << "Parallel Matrix multiplication with square matrix of dimension: " << matrixDimension << endl << flush;
+    cout << "[Parallel] Matrix multiplication with square matrix of dimension: " << matrixDimension << endl << flush;
 
     int **firstMatrix = allocateMatrix(matrixDimension);
     int **secondMatrix = allocateMatrix(matrixDimension);
@@ -95,8 +97,13 @@ static void masterProcess(int matrixDimension, int worldSize) {
         MPI_Send(&dummyChar, 1, MPI_BYTE, slave, END, MPI_COMM_WORLD);
     }
 
-    cout << "Matrix multiplication result is: " << endl;
-    printMatrix(cout, matrixMultiplicationResult, matrixDimension);
+    const auto resultPath = getenv(RESULT_PATH_ENV_NAME);
+    cout << "Saving parallel computation results to: " << resultPath << endl << flush;
+    ofstream destination(resultPath);
+
+    destination << "Matrix multiplication result is: " << endl;
+    printMatrix(destination, matrixMultiplicationResult, matrixDimension);
+    destination.close();
     
     freeMatrix(firstMatrix, matrixDimension);
     freeMatrix(secondMatrix, matrixDimension);
