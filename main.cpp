@@ -86,6 +86,9 @@ static void masterProcess(int matrixDimension, int worldSize) {
         }
     }
 
+    cout << "The matrix is: " << endl << flush;
+    printMatrix(cout, matrixMultiplicationResult, matrixDimension);
+
     freeMatrix(firstMatrix, matrixDimension);
     freeMatrix(secondMatrix, matrixDimension);
     freeMatrix(matrixMultiplicationResult, matrixDimension);
